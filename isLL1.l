@@ -11,31 +11,31 @@
     using namespace std;
 
     #define EPSILON "ε"
-    #define EOS "$"
+    #define EOS "$" // $ is used to denote end of stack
 
     class Grammar{
     public:
-        unordered_map<string,vector<string>> prods;
-        unordered_map<string,unordered_set<string>> FIRST,FOLLOW;
-        vector<string> ord;
-        unordered_map<string,int> rank;
-        unordered_set<string> terminals;
-        vector<vector<vector<int>>> parseTable;
-        bool isLL1 = true;
+        unordered_map<string,vector<string>> prods; //all the productions.
+        unordered_map<string,unordered_set<string>> FIRST,FOLLOW; //First and Follow of variable, tokens and productions.
+        vector<string> ord; //ordering for removing left recursion
+        unordered_map<string,int> rank; //reverse of ord.
+        unordered_set<string> terminals; //set of terminals.
+        vector<vector<vector<int>>> parseTable; //our parse table
+        bool isLL1 = true; // a boolean to check if the the grammar is LL1 or not.
 
         int nextVar;
 
         Grammar(){
             ord.resize(26);
-            initOrd();
+            initOrd(); //the step is to order the variables
         }
 
         void initOrd(){
             int pointer = 0;
-            ord[pointer++] = "S";
+            ord[pointer++] = "S"; // S is the start symbol so kept at the first position
             rank[("S")] = 0;
             string temp = "";
-            for(int i = 'A';i <= 'Z';i++){
+            for(int i = 'A';i <= 'Z';i++){ // rest of the variables are arranged in alphabetical order.
                 if(i == 'S') continue;
                 temp += i;
                 ord[pointer++] = temp;
@@ -45,6 +45,11 @@
         }
 
         void takeInput(char var, char str[50]){
+            /*
+                the function takes a variable and a string as its production
+                adds it to our all our productions and adds all the terminal
+                symbols to our set of terminals.
+            */
             string a = "";
             string b = "";
             a += var;
@@ -67,6 +72,9 @@
         }
 
         void removeRedun(){
+            /*
+                the method removes all the redundant productions - if any.
+            */
             for(int i = 0;i < ord.size();i++){
                 for(auto itr = prods[ord[i]].begin();itr != prods[ord[i]].end();++itr){
                     if(*itr == *(itr+1)){
@@ -77,7 +85,20 @@
             }
         }
 
+        inline void printProds(){
+            /*
+                the main method to print productions of all the variables.
+            */
+            for(int i = 0;i < ord.size();i++){
+                printFor(ord[i]);
+            }
+            cout<<"------------\n\n";
+        }   
+
         void printFor(string idx){
+            /*
+                the utility method takes a variable as input and prints all its productions.
+            */
             if(prods[idx].size()){
                 cout<<idx<<" →  ";
                 bool flag = 0;
@@ -90,20 +111,50 @@
             }
         }
 
-        inline void printProds(){
-            for(int i = 0;i < ord.size();i++){
-                printFor(ord[i]);
-            }
-            cout<<"------------\n\n";
-        }   
-
         inline void sortProds(){
+            /*
+                We sort all the productions
+                to make left factoring easier.
+            */
             for(auto & u : prods){
                 sort(u.second.begin(), u.second.end());
             }
         }
 
+        void remLeftRecur(){
+            /*
+                the method removes all the left recursions.
+            */
+            for(int i = 0;i < ord.size();i++){
+                string curr = ord[i];
+                if(curr.length() == 2) continue;
+                int n = prods[curr].size();
+                for(int i = 0;i < n;i++){
+                    string u = prods[curr][i];
+                    string temp = "";
+                    if(u == EPSILON) continue;
+                    temp += u[0];
+                    if(terminals.find(temp) != terminals.end()) continue;
+                    if(rank[temp] < rank[curr]){
+                        string gamma = u.substr(1);
+                        for(auto delta : prods[temp]){
+                            delta = delta + gamma;
+                            prods[curr].emplace_back(delta);
+                        }
+                        prods[curr].erase(prods[curr].begin()+i);
+                        i--;
+                        n--;
+                    }
+                }
+                remImmLeftRecur(curr);
+            }
+        }
+
         void remImmLeftRecur(string & curr){
+            /*
+                the method removes all the immediate left recursion
+                for the "curr" variable.
+            */
             bool flag = 0;
             for(auto v : prods[curr]){
                 if(v[0] == curr[0]){
@@ -136,32 +187,6 @@
             }
         }
 
-        void remLeftRecur(){
-            for(int i = 0;i < ord.size();i++){
-                string curr = ord[i];
-                if(curr.length() == 2) continue;
-                int n = prods[curr].size();
-                for(int i = 0;i < n;i++){
-                    string u = prods[curr][i];
-                    string temp = "";
-                    if(u == EPSILON) continue;
-                    temp += u[0];
-                    if(terminals.find(temp) != terminals.end()) continue;
-                    if(rank[temp] < rank[curr]){
-                        string gamma = u.substr(1);
-                        for(auto delta : prods[temp]){
-                            delta = delta + gamma;
-                            prods[curr].emplace_back(delta);
-                        }
-                        prods[curr].erase(prods[curr].begin()+i);
-                        i--;
-                        n--;
-                    }
-                }
-                remImmLeftRecur(curr);
-            }
-        }
-
         inline void checkNext(){
             for(int i = 0;i < ord.size();i++){
                 if(prods[ord[i]].size()){
@@ -172,6 +197,10 @@
         }
 
         void remLeftFact(){
+            /*
+                the method to remove left factoring
+                for all the variables.
+            */
             vector<vector<bool>> flag((int)ord.size());
             for(int itr = 0;itr < ord.size();itr++){
                 int start = 0;
@@ -204,6 +233,12 @@
         }
 
         void clean(vector<vector<bool>> & flag){
+            /*
+                a utility function for left factoring
+                takes as input boolean values of each
+                variable-production pair, if there is
+                a left factoring.
+            */
             for(int itr = 0;itr < ord.size();itr++){
                 for(int i = 0;i < flag[itr].size();i++){
                     if(flag[itr][i]){
@@ -216,6 +251,9 @@
         }
 
         void initFIRST(){
+            /*
+                initializing the FIRST data for terminals only.
+            */
             for(auto u : prods){
                 for(auto v : u.second){
                     if(v == EPSILON) FIRST[v].insert(v);
@@ -235,6 +273,10 @@
         }
 
         void printFirst(string i,int j){
+            /*
+                takes as the variable i, and the index j of any of its productions
+                and prints the FIRST of this production.
+            */
             cout<<i<<" →  "<<prods[i][j]<<" = {";
             bool flag = 0;
             for(auto u : FIRST[prods[i][j]]){
@@ -246,6 +288,9 @@
         }
 
         void createFIRST(){
+            /*
+                the function to populate FIRST for each production,
+            */
             for(int i = 0;i < ord.size();i++){
                 for(int j = 0;j < prods[ord[i]].size();j++){
                     unordered_set<string> st = getFirst(prods[ord[i]][j]);
@@ -255,6 +300,9 @@
         }
 
         unordered_set<string> getFirst(string s){
+            /*
+                takes as input any string and returns its FIRST set
+            */
             unordered_set<string> ret;
             if(s == EPSILON){
                 ret.insert(s);
@@ -293,6 +341,9 @@
         }
 
         void createFOLLOW(){
+            /*
+                populating FOLLOW for each variable.
+            */
             FOLLOW[ord[0]].insert(EOS);
             for(int i = 0;i < 3;i++){
                 for(int i = 0;i < ord.size();i++){
@@ -327,6 +378,9 @@
         }
 
         void buildParseTable(){
+            /*
+                build the our parse table.
+            */
             parseTable.resize(ord.size());
             for(auto & u : parseTable) u.resize(terminals.size()-1);
             for(int i = 0;i < ord.size();i++){
@@ -361,6 +415,9 @@
         }
 
         inline void check(){
+            /*
+                Finding the final answer.
+            */
             if(isLL1) cout<<"\033[1;32mRESULT: This grammar is LL1\033[0m\n";
             else cout<<"\033[1;31mRESULT: This grammar is not LL1\033[0m\n";
         }
@@ -440,6 +497,7 @@ int main(int argc, char **argv)
     gm.check();
     return(0);
 }
+
 int yywrap()
 {
     return(1);
